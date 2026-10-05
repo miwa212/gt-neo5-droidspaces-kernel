@@ -1,0 +1,135 @@
+name: Build senna Droidspaces GKI kernel
+
+# realme GT Neo5 240W (RMX3708) / GT Neo5 / GT3 (senna) 专用
+# 基于 realme AndroidU 内核源（kernel_platform）+ Droidspaces GKI kABI 补丁
+# 社区构建链路参考: Quantom2/Realme-GT3-neo5-kernels
+
+on:
+  workflow_dispatch:
+    inputs:
+      make_release:
+        description: '构建成功后创建 Release'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+env:
+  MANIFEST_URL: https://github.com/Quantom2/gt_neo5_kernel_manifest.git
+  MANIFEST_BRANCH: oneplus/sm8475
+  MANIFEST_XML: realme_gt_neo5.xml
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - name: Checkout builder repo
+        uses: actions/checkout@v4
+
+      - name: Maximize build space
+        run: |
+          echo "=== 清理前磁盘空间 ==="
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+            /usr/local/.ghcup /opt/hostedtoolcache/CodeQL /usr/local/share/boost || true
+          sudo docker image prune --all --force > /dev/null 2>&1 || true
+          echo "=== 清理后磁盘空间 ==="
+          df -h /
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git curl build-essential bc bison flex \
+            libssl-dev libelf-dev repo python3-pip zip cpio
+          pip3 install --user gdown
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Sync kernel sources
+        run: |
+          cd ~/
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          repo init "$MANIFEST_URL" -b "$MANIFEST_BRANCH" -m "$MANIFEST_XML" \
+            --depth=1 --no-tags
+          success=false
+          for i in 1 2 3; do
+            if repo sync -c --no-clone-bundle --no-tags --optimized-fetch \
+              -j"$(nproc)" --fail-fast; then
+              success=true
+              break
+            fi
+            echo "::warning::repo sync 第 $i 次失败，重试中..."
+            sleep 30
+          done
+          [ "$success" = true ] || { echo "::error::repo sync 三次均失败"; exit 1; }
+          echo "✅ kernel_platform 同步完成"
+          df -h /
+
+      - name: Apply Droidspaces patches and config
+        run: |
+          cd ~/kernel_platform
+          bash "$GITHUB_WORKSPACE/scripts/apply_droidspaces.sh" ./common
+          echo "=== gki_defconfig 变更 ==="
+          cd common
+          git diff -- arch/arm64/configs/gki_defconfig || true
+
+      - name: Build kernel (thin LTO)
+        run: |
+          cd ~/
+          SYSTEM_DLKM_RE_SIGN=0 BUILD_SYSTEM_DLKM=0 KMI_SYMBOL_LIST_STRICT_MODE=0 \
+            ./kernel_platform/oplus/build/oplus_build_kernel.sh wapio gki thin all disable
+          echo "=== 构建产物检查 ==="
+          ls -la ~/kernel_platform/out/msm-waipio-waipio-gki/gki_kernel/dist/ || true
+          [ -f ~/kernel_platform/out/msm-waipio-waipio-gki/gki_kernel/dist/Image ] \
+            || { echo "::error::Image 产物不存在，构建失败"; exit 1; }
+
+      - name: Package AnyKernel3 flashable zip
+        run: |
+          mkdir -p ~/out_boot
+          cd ~/
+          git clone https://github.com/WildPlusKernel/AnyKernel3.git \
+            -b gki-2.0 --depth=1
+          cd AnyKernel3
+          rm -rf .git .github
+          cp ~/kernel_platform/out/msm-waipio-waipio-gki/gki_kernel/dist/Image ./Image
+          zip -r9 ../senna-droidspaces-AnyKernel3.zip ./*
+          mv ../senna-droidspaces-AnyKernel3.zip ~/out_boot/
+          cp ~/kernel_platform/out/msm-waipio-waipio-gki/gki_kernel/dist/Image \
+            ~/out_boot/senna-droidspaces-Image
+          echo "=== AnyKernel3 打包完成 ==="
+          ls -la ~/out_boot/
+
+      - name: Repack boot.img (基于社区 stock boot，失败不影响产物)
+        continue-on-error: true
+        run: |
+          mkdir -p ~/stock_boot ~/out_repack
+          gdown --id 1PtSKw3jEZSyE1MhvzeUwy30wwv7D8_bQ -O ~/stock_boot/boot.img
+          cp ~/kernel_platform/out/msm-waipio-waipio-gki/dist/boot.img ~/custom-boot.img
+          cd ~/
+          ./kernel_platform/oplus/build/oplus_build_repack_bootimg.sh \
+            -k ~/custom-boot.img -r ~/stock_boot/boot.img -o ~/out_repack/
+          cp ~/out_repack/repacked-boot.img ~/out_boot/senna-droidspaces-boot.img \
+            || echo "::warning::boot.img repack 失败，可改用 AnyKernel3 zip 刷入"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: senna-droidspaces-kernel
+          path: /home/runner/out_boot/*
+          if-no-files-found: error
+
+      - name: Create Release
+        if: inputs.make_release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: droidspaces-${{ github.run_number }}
+          name: "Droidspaces kernel build #${{ github.run_number }}"
+          files: /home/runner/out_boot/*
+          body: |
+            realme GT Neo5 240W (RMX3708/senna) Droidspaces 支持内核
+            - 内核: realme AndroidU GKI 5.10 (android12-9 KMI)
+            - 已应用 Droidspaces kABI 补丁 (SYSVIPC + POSIX_MQUEUE)
+            - 刷入方式: recovery 刷 AnyKernel3 zip 或 fastboot flash boot boot.img
+            - ⚠️ 刷前务必备份原厂 boot.img
