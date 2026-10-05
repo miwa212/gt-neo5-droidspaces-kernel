@@ -64,12 +64,6 @@ fi
 
 echo "== 3/3 修改 gki_defconfig =="
 
-# 关闭 LTO：GitHub 免费 runner(16G) 无法完成 GKI ThinLTO 链接（实测连续被 OOM 杀掉）
-# oplus_build_kernel.sh 的菜单 LTO 选项不落盘，必须改 defconfig
-sed -i 's/^CONFIG_LTO_CLANG_THIN=y/# CONFIG_LTO_CLANG_THIN is not set/' "$DEFCONFIG"
-sed -i 's/^CONFIG_LTO_CLANG_FULL=y/# CONFIG_LTO_CLANG_FULL is not set/' "$DEFCONFIG"
-echo "  已关闭 CONFIG_LTO_CLANG_THIN / CONFIG_LTO_CLANG_FULL"
-
 enable_option() {
   local opt="$1"
   if grep -q "^# ${opt} is not set" "$DEFCONFIG"; then
@@ -84,9 +78,8 @@ enable_option() {
 }
 
 # Droidspaces GKI 官方配置（kABI 安全集合）
+# 最小改动版：不动 LTO（保持原厂 thin）、不含 KSU，用于定位 bootloop 原因
 for opt in \
-  CONFIG_LTO_NONE \
-  CONFIG_KSU \
   CONFIG_SYSVIPC \
   CONFIG_POSIX_MQUEUE \
   CONFIG_IPC_NS \
