@@ -22,7 +22,7 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-latest-16-cores   # 付费大内存 runner (16核/32GB)，确保 ThinLTO 链接不 OOM
+    runs-on: ubuntu-latest   # 免费 runner (4核/16GB)，保留原厂 thin LTO 做最小改动验证
     timeout-minutes: 300
     steps:
       - name: Checkout builder repo
@@ -74,6 +74,18 @@ jobs:
           echo "=== gki_defconfig 变更 ==="
           cd common
           git diff -- arch/arm64/configs/gki_defconfig || true
+
+      - name: Cap ThinLTO jobs (降低免费 runner 链接内存峰值)
+        run: |
+          cd ~/kernel_platform/common
+          echo "=== 查找 thinlto-jobs 定义 ==="
+          grep -rn "thinlto-jobs" Makefile scripts/ 2>/dev/null || echo "未找到定义"
+          # 统一限制为 2 个后端线程（原为 nproc），链接时间换取内存安全
+          grep -rl "thinlto-jobs" Makefile scripts/ 2>/dev/null | while read -r f; do
+            sed -i -E 's/(--thinlto-jobs=)[^" ]+/\12/g' "$f"
+            echo "  已限制: $f"
+          done
+          grep -rn "thinlto-jobs" Makefile scripts/ 2>/dev/null | head -5 || true
 
       - name: Build kernel (原厂 thin LTO，最小改动版)
         run: |
