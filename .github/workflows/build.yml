@@ -111,7 +111,7 @@ jobs:
         continue-on-error: true
         run: |
           mkdir -p ~/stock_boot ~/out_repack
-          gdown --id 1PtSKw3jEZSyE1MhvzeUwy30wwv7D8_bQ -O ~/stock_boot/boot.img
+          gdown "https://drive.google.com/uc?id=1PtSKw3jEZSyE1MhvzeUwy30wwv7D8_bQ" -O ~/stock_boot/boot.img
           cp ~/kernel_platform/out/msm-waipio-waipio-gki/dist/boot.img ~/custom-boot.img
           cd ~/
           ./kernel_platform/oplus/build/oplus_build_repack_bootimg.sh \
