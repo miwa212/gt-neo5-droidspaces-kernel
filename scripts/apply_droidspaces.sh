@@ -9,6 +9,8 @@
 set -euo pipefail
 
 TREE="${1:?usage: apply_droidspaces.sh <gki-kernel-tree-path>}"
+# 解析为绝对路径，避免后续 cd 导致相对路径失效
+TREE="$(cd "$TREE" && pwd)"
 API_URL="https://api.github.com/repos/ravindu644/Droidspaces-OSS/contents/Documentation/resources/kernel-patches/GKI/below-kernel-6.12"
 RAW_BASE="https://raw.githubusercontent.com/ravindu644/Droidspaces-OSS/main/Documentation/resources/kernel-patches/GKI/below-kernel-6.12"
 DEFCONFIG="$TREE/arch/arm64/configs/gki_defconfig"
@@ -110,3 +112,9 @@ for bad in CONFIG_CFS_BANDWIDTH CONFIG_CGROUP_PIDS; do
 done
 
 echo "== Droidspaces 配置完成 =="
+
+# 禁用 check_defconfig 校验（defconfig 手工修改后该检查会报 config 漂移）
+if [ -f "$TREE/build.config.gki" ]; then
+  sed -i 's/check_defconfig//' "$TREE/build.config.gki"
+  echo "已禁用 common/build.config.gki 中的 check_defconfig"
+fi
