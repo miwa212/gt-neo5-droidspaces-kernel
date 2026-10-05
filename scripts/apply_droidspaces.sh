@@ -86,6 +86,7 @@ enable_option() {
 # Droidspaces GKI 官方配置（kABI 安全集合）
 for opt in \
   CONFIG_LTO_NONE \
+  CONFIG_KSU \
   CONFIG_SYSVIPC \
   CONFIG_POSIX_MQUEUE \
   CONFIG_IPC_NS \
