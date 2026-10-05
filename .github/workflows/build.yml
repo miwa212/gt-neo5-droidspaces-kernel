@@ -22,7 +22,7 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-16-cores   # 付费大内存 runner (16核/32GB)，确保 ThinLTO 链接不 OOM
     timeout-minutes: 300
     steps:
       - name: Checkout builder repo
@@ -75,17 +75,11 @@ jobs:
           cd common
           git diff -- arch/arm64/configs/gki_defconfig || true
 
-      - name: Integrate KernelSU (保持设备 root，Droidspaces 需要)
-        run: |
-          cd ~/kernel_platform/common
-          curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s v1.0.5
-          grep -q "kernelsu" drivers/Makefile && echo "✅ KernelSU v1.0.5 已集成到 drivers/kernelsu"
-
-      - name: Build kernel (no LTO，规避 16G runner 内存峰值)
+      - name: Build kernel (原厂 thin LTO，最小改动版)
         run: |
           cd ~/
           SYSTEM_DLKM_RE_SIGN=0 BUILD_SYSTEM_DLKM=0 KMI_SYMBOL_LIST_STRICT_MODE=0 \
-            ./kernel_platform/oplus/build/oplus_build_kernel.sh wapio gki none all disable
+            ./kernel_platform/oplus/build/oplus_build_kernel.sh wapio gki thin all disable
           echo "=== 构建产物检查 ==="
           ls -la ~/kernel_platform/out/msm-waipio-waipio-gki/gki_kernel/dist/ || true
           [ -f ~/kernel_platform/out/msm-waipio-waipio-gki/gki_kernel/dist/Image ] \
