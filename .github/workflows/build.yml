@@ -7,6 +7,11 @@ name: Build senna Droidspaces GKI kernel
 on:
   workflow_dispatch:
     inputs:
+      variant:
+        description: '构建变体: droidspaces=含补丁与配置, stock=纯stock仅关LTO(诊断Build C)'
+        type: choice
+        options: [droidspaces, stock]
+        default: droidspaces
       make_release:
         description: '构建成功后创建 Release'
         type: boolean
@@ -67,15 +72,27 @@ jobs:
           echo "✅ kernel_platform 同步完成"
           df -h /
 
-      - name: Apply Droidspaces patches and config
+      - name: Apply Droidspaces patches and config (variant=${{ inputs.variant }})
         run: |
           cd ~/kernel_platform
-          bash "$GITHUB_WORKSPACE/scripts/apply_droidspaces.sh" ./common
+          if [ "${{ inputs.variant }}" = "stock" ]; then
+            echo "=== Build C 模式：不打 Droidspaces 补丁，仅关闭 LTO ==="
+            sed -i 's/^CONFIG_LTO_CLANG_THIN=y/# CONFIG_LTO_CLANG_THIN is not set/' \
+              ./common/arch/arm64/configs/gki_defconfig
+            sed -i 's/^CONFIG_LTO_CLANG_FULL=y/# CONFIG_LTO_CLANG_FULL is not set/' \
+              ./common/arch/arm64/configs/gki_defconfig
+            grep -q '^CONFIG_LTO_NONE=y' ./common/arch/arm64/configs/gki_defconfig || \
+              echo 'CONFIG_LTO_NONE=y' >> ./common/arch/arm64/configs/gki_defconfig
+            echo "=== defconfig LTO 相关变更 ==="
+            grep -E 'CONFIG_LTO' ./common/arch/arm64/configs/gki_defconfig
+          else
+            bash "$GITHUB_WORKSPACE/scripts/apply_droidspaces.sh" ./common
+          fi
           echo "=== gki_defconfig 变更 ==="
           cd common
           git diff -- arch/arm64/configs/gki_defconfig || true
 
-      - name: Build kernel (no LTO，诊断 Build B)
+      - name: Build kernel (no LTO)
         run: |
           cd ~/
           SYSTEM_DLKM_RE_SIGN=0 BUILD_SYSTEM_DLKM=0 KMI_SYMBOL_LIST_STRICT_MODE=0 \
@@ -94,10 +111,10 @@ jobs:
           cd AnyKernel3
           rm -rf .git .github
           cp ~/kernel_platform/out/msm-waipio-waipio-gki/gki_kernel/dist/Image ./Image
-          zip -r9 ../senna-droidspaces-AnyKernel3.zip ./*
-          mv ../senna-droidspaces-AnyKernel3.zip ~/out_boot/
+          zip -r9 ../senna-${{ inputs.variant }}-AnyKernel3.zip ./*
+          mv ../senna-${{ inputs.variant }}-AnyKernel3.zip ~/out_boot/
           cp ~/kernel_platform/out/msm-waipio-waipio-gki/gki_kernel/dist/Image \
-            ~/out_boot/senna-droidspaces-Image
+            ~/out_boot/senna-${{ inputs.variant }}-Image
           echo "=== AnyKernel3 打包完成 ==="
           ls -la ~/out_boot/
 
@@ -116,7 +133,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: senna-droidspaces-kernel
+          name: senna-${{ inputs.variant }}-kernel
           path: /home/runner/out_boot/*
           if-no-files-found: error
 
