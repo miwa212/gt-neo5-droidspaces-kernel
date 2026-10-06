@@ -10,7 +10,7 @@ on:
       variant:
         description: '构建变体'
         type: choice
-        options: [droidspaces, stock, droidspaces_lto, stock_lto, patchonly_lto, cfgonly_lto, cfgA_lto, cfgB_lto, cfgB1_lto, cfgB2_lto, cfgA1_lto, cfgA2_lto]
+        options: [droidspaces, stock, droidspaces_lto, stock_lto, patchonly_lto, cfgonly_lto, cfgA_lto, cfgB_lto, cfgB1_lto, cfgB2_lto, cfgA1_lto, cfgA2_lto, cfgA1a_lto, cfgA1b_lto, cfgA2a_lto, cfgA2b_lto]
         default: droidspaces
       make_release:
         description: '构建成功后创建 Release'
@@ -136,6 +136,26 @@ jobs:
               KEEP_LTO=1 bash "$GITHUB_WORKSPACE/scripts/apply_droidspaces.sh" ./common \
                 CONFIG_USER_NS CONFIG_TMPFS_POSIX_ACL CONFIG_TMPFS_XATTR \
                 CONFIG_NETFILTER_XT_MATCH_ADDRTYPE
+              ;;
+            cfgA1a_lto)
+              echo "=== 二分J1：补丁 + A1a(3项: sysvipc/mqueue/ipc_ns) + ThinLTO ==="
+              KEEP_LTO=1 bash "$GITHUB_WORKSPACE/scripts/apply_droidspaces.sh" ./common \
+                CONFIG_SYSVIPC CONFIG_POSIX_MQUEUE CONFIG_IPC_NS
+              ;;
+            cfgA1b_lto)
+              echo "=== 二分J2：补丁 + A1b(2项: pid_ns/devtmpfs) + ThinLTO ==="
+              KEEP_LTO=1 bash "$GITHUB_WORKSPACE/scripts/apply_droidspaces.sh" ./common \
+                CONFIG_PID_NS CONFIG_DEVTMPFS
+              ;;
+            cfgA2a_lto)
+              echo "=== 二分J3：补丁 + A2a(1项: user_ns) + ThinLTO ==="
+              KEEP_LTO=1 bash "$GITHUB_WORKSPACE/scripts/apply_droidspaces.sh" ./common \
+                CONFIG_USER_NS
+              ;;
+            cfgA2b_lto)
+              echo "=== 二分J4：补丁 + A2b(3项: tmpfs_acl/tmpfs_xattr/addrtype) + ThinLTO ==="
+              KEEP_LTO=1 bash "$GITHUB_WORKSPACE/scripts/apply_droidspaces.sh" ./common \
+                CONFIG_TMPFS_POSIX_ACL CONFIG_TMPFS_XATTR CONFIG_NETFILTER_XT_MATCH_ADDRTYPE
               ;;
             cfgB_lto)
               echo "=== 二分G2：补丁 + 配置B组(9项: netfilter/ipset) + ThinLTO ==="
