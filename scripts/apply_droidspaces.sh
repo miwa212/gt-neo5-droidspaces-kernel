@@ -17,7 +17,16 @@ DEFCONFIG="$TREE/arch/arm64/configs/gki_defconfig"
 
 [ -f "$DEFCONFIG" ] || { echo "❌ 未找到 defconfig: $DEFCONFIG"; exit 1; }
 
+# 环境变量开关（二分诊断用）:
+#   KEEP_LTO=1      保留原厂 ThinLTO（no-LTO 内核与 vendor 模块不兼容，已实锤）
+#   SKIP_PATCHES=1  跳过 kABI 补丁（只改配置）
+#   SKIP_CONFIG=1   跳过 defconfig 修改（只打补丁）
+
 WORK=$(mktemp -d)
+SKIP_PATCHES=${SKIP_PATCHES:-0}
+SKIP_CONFIG=${SKIP_CONFIG:-0}
+
+if [ "$SKIP_PATCHES" != "1" ]; then
 echo "== 1/3 下载 Droidspaces kABI 补丁 =="
 for f in $(curl -sf "$API_URL" | grep -o '"name": *"[^"]*\.patch"' | sed 's/.*"\([^"]*\.patch\)"/\1/'); do
   curl -sfL "$RAW_BASE/$f" -o "$WORK/$f" && echo "  下载: $f"
@@ -60,6 +69,14 @@ if apply_patch_try $MQUEUE; then
   echo "  ✅ POSIX_MQUEUE kABI 补丁完成"
 else
   echo "❌ POSIX_MQUEUE kABI 补丁失败（5.10 内核必打）"; exit 1
+fi
+else
+  echo "== SKIP_PATCHES=1: 跳过 kABI 补丁 =="
+fi
+
+if [ "$SKIP_CONFIG" = "1" ]; then
+  echo "== SKIP_CONFIG=1: 跳过 defconfig 修改 =="
+  exit 0
 fi
 
 echo "== 3/3 修改 gki_defconfig =="
