@@ -65,10 +65,16 @@ fi
 echo "== 3/3 修改 gki_defconfig =="
 
 # 关闭 LTO：免费 runner(16G) 无法完成 GKI ThinLTO 链接（已 3 次实测被杀）
+# 实测（2026-10-06 Build C）：no-LTO 内核与原厂 vendor 模块不兼容（CRC/布局变化）→ bootloop
+# 因此支持 KEEP_LTO=1 跳过本段（配 swap 方案在 LTO 下编译）
 # oplus_build_kernel.sh 菜单的 LTO 选项不落盘，必须改 defconfig
-sed -i 's/^CONFIG_LTO_CLANG_THIN=y/# CONFIG_LTO_CLANG_THIN is not set/' "$DEFCONFIG"
-sed -i 's/^CONFIG_LTO_CLANG_FULL=y/# CONFIG_LTO_CLANG_FULL is not set/' "$DEFCONFIG"
-echo "  已关闭 CONFIG_LTO_CLANG_THIN / CONFIG_LTO_CLANG_FULL"
+if [ "${KEEP_LTO:-0}" != "1" ]; then
+  sed -i 's/^CONFIG_LTO_CLANG_THIN=y/# CONFIG_LTO_CLANG_THIN is not set/' "$DEFCONFIG"
+  sed -i 's/^CONFIG_LTO_CLANG_FULL=y/# CONFIG_LTO_CLANG_FULL is not set/' "$DEFCONFIG"
+  echo "  已关闭 CONFIG_LTO_CLANG_THIN / CONFIG_LTO_CLANG_FULL"
+else
+  echo "  KEEP_LTO=1: 保留原厂 ThinLTO 配置"
+fi
 
 enable_option() {
   local opt="$1"
@@ -86,7 +92,6 @@ enable_option() {
 # Droidspaces GKI 官方配置（kABI 安全集合）
 # Build B 诊断版：无 LTO + 无 KSU，仅 Droidspaces 补丁与配置
 for opt in \
-  CONFIG_LTO_NONE \
   CONFIG_SYSVIPC \
   CONFIG_POSIX_MQUEUE \
   CONFIG_IPC_NS \
