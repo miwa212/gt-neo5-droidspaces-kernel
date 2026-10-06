@@ -8,7 +8,8 @@
 # 参考: https://github.com/ravindu644/Droidspaces-OSS/blob/main/Documentation/zh-CN/Kernel-Configuration.md
 set -euo pipefail
 
-TREE="${1:?usage: apply_droidspaces.sh <gki-kernel-tree-path>}"
+TREE="${1:?usage: apply_droidspaces.sh <gki-kernel-tree-path> [CONFIG_A CONFIG_B ...]}"
+# 可选第2参数: 空格分隔的 CONFIG 列表（二分诊断用），不传则使用完整 18 项
 # 解析为绝对路径，避免后续 cd 导致相对路径失效
 TREE="$(cd "$TREE" && pwd)"
 API_URL="https://api.github.com/repos/ravindu644/Droidspaces-OSS/contents/Documentation/resources/kernel-patches/GKI/below-kernel-6.12"
@@ -107,27 +108,34 @@ enable_option() {
 }
 
 # Droidspaces GKI 官方配置（kABI 安全集合）
-# Build B 诊断版：无 LTO + 无 KSU，仅 Droidspaces 补丁与配置
-for opt in \
-  CONFIG_SYSVIPC \
-  CONFIG_POSIX_MQUEUE \
-  CONFIG_IPC_NS \
-  CONFIG_PID_NS \
-  CONFIG_DEVTMPFS \
-  CONFIG_NETFILTER_XT_MATCH_ADDRTYPE \
-  CONFIG_USER_NS \
-  CONFIG_IP6_NF_NAT \
-  CONFIG_IP6_NF_TARGET_MASQUERADE \
-  CONFIG_NETFILTER_XT_TARGET_REJECT \
-  CONFIG_NETFILTER_XT_TARGET_LOG \
-  CONFIG_NETFILTER_XT_MATCH_RECENT \
-  CONFIG_IP_SET \
-  CONFIG_IP_SET_HASH_IP \
-  CONFIG_IP_SET_HASH_NET \
-  CONFIG_NETFILTER_XT_SET \
-  CONFIG_TMPFS_POSIX_ACL \
-  CONFIG_TMPFS_XATTR
-do
+# 支持第2参数传入配置子集（二分诊断）；不传则用完整列表
+if [ $# -ge 2 ]; then
+  echo "== 使用自定义配置子集（共 $(($# - 1)) 项）=="
+  CONFIG_OPTS=("${@:2}")
+else
+  CONFIG_OPTS=(
+    CONFIG_SYSVIPC
+    CONFIG_POSIX_MQUEUE
+    CONFIG_IPC_NS
+    CONFIG_PID_NS
+    CONFIG_DEVTMPFS
+    CONFIG_NETFILTER_XT_MATCH_ADDRTYPE
+    CONFIG_USER_NS
+    CONFIG_IP6_NF_NAT
+    CONFIG_IP6_NF_TARGET_MASQUERADE
+    CONFIG_NETFILTER_XT_TARGET_REJECT
+    CONFIG_NETFILTER_XT_TARGET_LOG
+    CONFIG_NETFILTER_XT_MATCH_RECENT
+    CONFIG_IP_SET
+    CONFIG_IP_SET_HASH_IP
+    CONFIG_IP_SET_HASH_NET
+    CONFIG_NETFILTER_XT_SET
+    CONFIG_TMPFS_POSIX_ACL
+    CONFIG_TMPFS_XATTR
+  )
+fi
+
+for opt in "${CONFIG_OPTS[@]}"; do
   enable_option "$opt"
 done
 
