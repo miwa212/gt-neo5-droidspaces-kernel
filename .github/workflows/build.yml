@@ -10,7 +10,7 @@ on:
       variant:
         description: '构建变体'
         type: choice
-        options: [droidspaces, stock, droidspaces_lto, stock_lto, patchonly_lto, cfgonly_lto, cfgA_lto, cfgB_lto, cfgB1_lto, cfgB2_lto, cfgA1_lto, cfgA2_lto, cfgA1a_lto, cfgA1b_lto, cfgA2a_lto, cfgA2b_lto]
+        options: [droidspaces, stock, droidspaces_lto, stock_lto, patchonly_lto, cfgonly_lto, cfgA_lto, cfgB_lto, cfgB1_lto, cfgB2_lto, cfgA1_lto, cfgA2_lto, cfgA1a_lto, cfgA1b_lto, cfgA2a_lto, cfgA2b_lto, cfgK1_lto, cfgK2_lto, cfgK3_lto, cfgK4_lto, cfgK5_lto]
         default: droidspaces
       make_release:
         description: '构建成功后创建 Release'
@@ -156,6 +156,31 @@ jobs:
               echo "=== 二分J4：补丁 + A2b(3项: tmpfs_acl/tmpfs_xattr/addrtype) + ThinLTO ==="
               KEEP_LTO=1 bash "$GITHUB_WORKSPACE/scripts/apply_droidspaces.sh" ./common \
                 CONFIG_TMPFS_POSIX_ACL CONFIG_TMPFS_XATTR CONFIG_NETFILTER_XT_MATCH_ADDRTYPE
+              ;;
+            cfgK1_lto)
+              echo "=== 二分K1：补丁 + K1(2项: sysvipc/mqueue, 无 ipc_ns) + ThinLTO ==="
+              KEEP_LTO=1 bash "$GITHUB_WORKSPACE/scripts/apply_droidspaces.sh" ./common \
+                CONFIG_SYSVIPC CONFIG_POSIX_MQUEUE
+              ;;
+            cfgK2_lto)
+              echo "=== 二分K2：补丁 + K2(1项: ipc_ns) + ThinLTO ==="
+              KEEP_LTO=1 bash "$GITHUB_WORKSPACE/scripts/apply_droidspaces.sh" ./common \
+                CONFIG_IPC_NS
+              ;;
+            cfgK3_lto)
+              echo "=== 二分K3：补丁 + K3(1项: sysvipc) + ThinLTO ==="
+              KEEP_LTO=1 bash "$GITHUB_WORKSPACE/scripts/apply_droidspaces.sh" ./common \
+                CONFIG_SYSVIPC
+              ;;
+            cfgK4_lto)
+              echo "=== 二分K4：补丁(SYSVIPC槽位1_2_3) + J1三项(sysvipc/mqueue/ipc_ns) + ThinLTO ==="
+              KEEP_LTO=1 SYSVIPC_SLOTS=1_2_3 bash "$GITHUB_WORKSPACE/scripts/apply_droidspaces.sh" ./common \
+                CONFIG_SYSVIPC CONFIG_POSIX_MQUEUE CONFIG_IPC_NS
+              ;;
+            cfgK5_lto)
+              echo "=== 二分K5：补丁(SYSVIPC槽位3_4_5) + J1三项(sysvipc/mqueue/ipc_ns) + ThinLTO ==="
+              KEEP_LTO=1 SYSVIPC_SLOTS=3_4_5 bash "$GITHUB_WORKSPACE/scripts/apply_droidspaces.sh" ./common \
+                CONFIG_SYSVIPC CONFIG_POSIX_MQUEUE CONFIG_IPC_NS
               ;;
             cfgB_lto)
               echo "=== 二分G2：补丁 + 配置B组(9项: netfilter/ipset) + ThinLTO ==="

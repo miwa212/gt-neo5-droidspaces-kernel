@@ -55,14 +55,27 @@ apply_patch_try() {
 }
 
 echo "== 2/3 应用 kABI 补丁 =="
-# SYSVIPC：优先 6_7_8 槽位（官方文档推荐），失败则换 1_2_3 / 3_4_5
+# SYSVIPC：默认优先 6_7_8 槽位（官方文档推荐），失败则换 1_2_3 / 3_4_5
+# 二分诊断可用 SYSVIPC_SLOTS=1_2_3 或 3_4_5 强制指定槽位
 SYSVIPC_678=$(ls "$WORK"/*sysvipc*6_7_8*.patch 2>/dev/null || true)
-SYSVIPC_OTHERS=$(ls "$WORK"/*sysvipc*.patch 2>/dev/null | grep -v '6_7_8' || true)
-if apply_patch_try $SYSVIPC_678 $SYSVIPC_OTHERS; then
-  echo "  ✅ SYSVIPC kABI 补丁完成"
-else
-  echo "❌ 所有 SYSVIPC kABI 补丁均失败（开启 SYSVIPC/IPC_NS 将导致无限重启）"; exit 1
-fi
+SYSVIPC_123=$(ls "$WORK"/*sysvipc*1_2_3*.patch 2>/dev/null || true)
+SYSVIPC_345=$(ls "$WORK"/*sysvipc*3_4_5*.patch 2>/dev/null || true)
+SYSVIPC_OTHERS=$(ls "$WORK"/*sysvipc*.patch 2>/dev/null | grep -v -e '6_7_8' -e '1_2_3' -e '3_4_5' || true)
+SYSVIPC_FAIL_MSG="❌ 所有 SYSVIPC kABI 补丁均失败（开启 SYSVIPC/IPC_NS 将导致无限重启）"
+case "${SYSVIPC_SLOTS:-auto}" in
+  1_2_3)
+    echo "  强制槽位: 1_2_3"
+    apply_patch_try $SYSVIPC_123 $SYSVIPC_OTHERS || { echo "$SYSVIPC_FAIL_MSG"; exit 1; }
+    ;;
+  3_4_5)
+    echo "  强制槽位: 3_4_5"
+    apply_patch_try $SYSVIPC_345 $SYSVIPC_OTHERS || { echo "$SYSVIPC_FAIL_MSG"; exit 1; }
+    ;;
+  *)
+    apply_patch_try $SYSVIPC_678 $SYSVIPC_123 $SYSVIPC_345 $SYSVIPC_OTHERS || { echo "$SYSVIPC_FAIL_MSG"; exit 1; }
+    ;;
+esac
+echo "  ✅ SYSVIPC kABI 补丁完成"
 
 # POSIX_MQUEUE：5.10 及以下必打
 MQUEUE=$(ls "$WORK"/*mqueue*.patch "$WORK"/*5.10*.patch 2>/dev/null || true)
