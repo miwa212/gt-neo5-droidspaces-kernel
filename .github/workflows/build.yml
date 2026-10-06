@@ -8,9 +8,9 @@ on:
   workflow_dispatch:
     inputs:
       variant:
-        description: '构建变体: droidspaces=含补丁与配置, stock=纯stock仅关LTO(诊断Build C)'
+        description: '构建变体'
         type: choice
-        options: [droidspaces, stock]
+        options: [droidspaces, stock, droidspaces_lto, stock_lto]
         default: droidspaces
       make_release:
         description: '构建成功后创建 Release'
@@ -72,35 +72,57 @@ jobs:
           echo "✅ kernel_platform 同步完成"
           df -h /
 
+      - name: Add swap 32G (ThinLTO 链接需 >16G 内存)
+        run: |
+          sudo fallocate -l 32G /mnt/swapfile
+          sudo chmod 600 /mnt/swapfile
+          sudo mkswap /mnt/swapfile
+          sudo swapon /mnt/swapfile
+          free -h
+          swapon --show
+
       - name: Apply Droidspaces patches and config (variant=${{ inputs.variant }})
         run: |
           cd ~/kernel_platform
-          if [ "${{ inputs.variant }}" = "stock" ]; then
-            echo "=== Build C 模式：不打 Droidspaces 补丁，仅关闭 LTO ==="
-            sed -i 's/^CONFIG_LTO_CLANG_THIN=y/# CONFIG_LTO_CLANG_THIN is not set/' \
-              ./common/arch/arm64/configs/gki_defconfig
-            sed -i 's/^CONFIG_LTO_CLANG_FULL=y/# CONFIG_LTO_CLANG_FULL is not set/' \
-              ./common/arch/arm64/configs/gki_defconfig
-            grep -q '^CONFIG_LTO_NONE=y' ./common/arch/arm64/configs/gki_defconfig || \
-              echo 'CONFIG_LTO_NONE=y' >> ./common/arch/arm64/configs/gki_defconfig
-            if [ -f ./common/build.config.gki ]; then
-              sed -i 's/check_defconfig//' ./common/build.config.gki
-              echo "已禁用 check_defconfig"
-            fi
-            echo "=== defconfig LTO 相关变更 ==="
-            grep -E 'CONFIG_LTO' ./common/arch/arm64/configs/gki_defconfig
-          else
-            bash "$GITHUB_WORKSPACE/scripts/apply_droidspaces.sh" ./common
-          fi
+          case "${{ inputs.variant }}" in
+            stock)
+              echo "=== Build C 模式：不打 Droidspaces 补丁，仅关闭 LTO ==="
+              sed -i 's/^CONFIG_LTO_CLANG_THIN=y/# CONFIG_LTO_CLANG_THIN is not set/' \
+                ./common/arch/arm64/configs/gki_defconfig
+              sed -i 's/^CONFIG_LTO_CLANG_FULL=y/# CONFIG_LTO_CLANG_FULL is not set/' \
+                ./common/arch/arm64/configs/gki_defconfig
+              grep -q '^CONFIG_LTO_NONE=y' ./common/arch/arm64/configs/gki_defconfig || \
+                echo 'CONFIG_LTO_NONE=y' >> ./common/arch/arm64/configs/gki_defconfig
+              if [ -f ./common/build.config.gki ]; then
+                sed -i 's/check_defconfig//' ./common/build.config.gki
+                echo "已禁用 check_defconfig"
+              fi
+              echo "=== defconfig LTO 相关变更 ==="
+              grep -E 'CONFIG_LTO' ./common/arch/arm64/configs/gki_defconfig
+              ;;
+            stock_lto)
+              echo "=== 纯 stock + 原厂 ThinLTO：不改任何配置（基准验证） ==="
+              ;;
+            droidspaces)
+              echo "=== Build B 模式：Droidspaces 补丁 + 关 LTO ==="
+              bash "$GITHUB_WORKSPACE/scripts/apply_droidspaces.sh" ./common
+              ;;
+            droidspaces_lto)
+              echo "=== 目标版本：Droidspaces 补丁 + 原厂 ThinLTO ==="
+              KEEP_LTO=1 bash "$GITHUB_WORKSPACE/scripts/apply_droidspaces.sh" ./common
+              ;;
+          esac
           echo "=== gki_defconfig 变更 ==="
           cd common
           git diff -- arch/arm64/configs/gki_defconfig || true
 
-      - name: Build kernel (no LTO)
+      - name: Build kernel
         run: |
           cd ~/
+          LTOPARAM=none
+          case "${{ inputs.variant }}" in *_lto) LTOPARAM=thin;; esac
           SYSTEM_DLKM_RE_SIGN=0 BUILD_SYSTEM_DLKM=0 KMI_SYMBOL_LIST_STRICT_MODE=0 \
-            ./kernel_platform/oplus/build/oplus_build_kernel.sh wapio gki none all disable
+            ./kernel_platform/oplus/build/oplus_build_kernel.sh wapio gki $LTOPARAM all disable
           echo "=== 构建产物检查 ==="
           ls -la ~/kernel_platform/out/msm-waipio-waipio-gki/gki_kernel/dist/ || true
           [ -f ~/kernel_platform/out/msm-waipio-waipio-gki/gki_kernel/dist/Image ] \
