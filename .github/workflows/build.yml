@@ -75,23 +75,11 @@ jobs:
           cd common
           git diff -- arch/arm64/configs/gki_defconfig || true
 
-      - name: Cap ThinLTO jobs (降低免费 runner 链接内存峰值)
-        run: |
-          cd ~/kernel_platform/common
-          echo "=== 查找 thinlto-jobs 定义 ==="
-          grep -rn "thinlto-jobs" Makefile scripts/ 2>/dev/null || echo "未找到定义"
-          # 统一限制为 2 个后端线程（原为 nproc），链接时间换取内存安全
-          grep -rl "thinlto-jobs" Makefile scripts/ 2>/dev/null | while read -r f; do
-            sed -i -E 's/(--thinlto-jobs=)[^" ]+/\12/g' "$f"
-            echo "  已限制: $f"
-          done
-          grep -rn "thinlto-jobs" Makefile scripts/ 2>/dev/null | head -5 || true
-
-      - name: Build kernel (原厂 thin LTO，最小改动版)
+      - name: Build kernel (no LTO，诊断 Build B)
         run: |
           cd ~/
           SYSTEM_DLKM_RE_SIGN=0 BUILD_SYSTEM_DLKM=0 KMI_SYMBOL_LIST_STRICT_MODE=0 \
-            ./kernel_platform/oplus/build/oplus_build_kernel.sh wapio gki thin all disable
+            ./kernel_platform/oplus/build/oplus_build_kernel.sh wapio gki none all disable
           echo "=== 构建产物检查 ==="
           ls -la ~/kernel_platform/out/msm-waipio-waipio-gki/gki_kernel/dist/ || true
           [ -f ~/kernel_platform/out/msm-waipio-waipio-gki/gki_kernel/dist/Image ] \
