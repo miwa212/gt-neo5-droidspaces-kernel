@@ -10,7 +10,7 @@ on:
       variant:
         description: '构建变体'
         type: choice
-        options: [droidspaces, stock, droidspaces_lto, stock_lto]
+        options: [droidspaces, stock, droidspaces_lto, stock_lto, patchonly_lto, cfgonly_lto]
         default: droidspaces
       make_release:
         description: '构建成功后创建 Release'
@@ -110,6 +110,14 @@ jobs:
             droidspaces_lto)
               echo "=== 目标版本：Droidspaces 补丁 + 原厂 ThinLTO ==="
               KEEP_LTO=1 bash "$GITHUB_WORKSPACE/scripts/apply_droidspaces.sh" ./common
+              ;;
+            patchonly_lto)
+              echo "=== 二分F1：仅 kABI 补丁 + ThinLTO（不改配置） ==="
+              KEEP_LTO=1 SKIP_CONFIG=1 bash "$GITHUB_WORKSPACE/scripts/apply_droidspaces.sh" ./common
+              ;;
+            cfgonly_lto)
+              echo "=== 二分F2：仅 defconfig 配置 + ThinLTO（不打补丁） ==="
+              KEEP_LTO=1 SKIP_PATCHES=1 bash "$GITHUB_WORKSPACE/scripts/apply_droidspaces.sh" ./common
               ;;
           esac
           echo "=== gki_defconfig 变更 ==="
