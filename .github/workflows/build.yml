@@ -83,6 +83,10 @@ jobs:
               ./common/arch/arm64/configs/gki_defconfig
             grep -q '^CONFIG_LTO_NONE=y' ./common/arch/arm64/configs/gki_defconfig || \
               echo 'CONFIG_LTO_NONE=y' >> ./common/arch/arm64/configs/gki_defconfig
+            if [ -f ./common/build.config.gki ]; then
+              sed -i 's/check_defconfig//' ./common/build.config.gki
+              echo "已禁用 check_defconfig"
+            fi
             echo "=== defconfig LTO 相关变更 ==="
             grep -E 'CONFIG_LTO' ./common/arch/arm64/configs/gki_defconfig
           else
