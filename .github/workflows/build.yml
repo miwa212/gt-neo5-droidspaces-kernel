@@ -10,7 +10,7 @@ on:
       variant:
         description: '构建变体'
         type: choice
-        options: [droidspaces, stock, droidspaces_lto, stock_lto, patchonly_lto, cfgonly_lto, cfgA_lto, cfgB_lto]
+        options: [droidspaces, stock, droidspaces_lto, stock_lto, patchonly_lto, cfgonly_lto, cfgA_lto, cfgB_lto, cfgB1_lto, cfgB2_lto]
         default: droidspaces
       make_release:
         description: '构建成功后创建 Release'
@@ -133,6 +133,19 @@ jobs:
                 CONFIG_NETFILTER_XT_TARGET_REJECT CONFIG_NETFILTER_XT_TARGET_LOG \
                 CONFIG_NETFILTER_XT_MATCH_RECENT CONFIG_IP_SET CONFIG_IP_SET_HASH_IP \
                 CONFIG_IP_SET_HASH_NET CONFIG_NETFILTER_XT_SET
+              ;;
+            cfgB1_lto)
+              echo "=== 二分H1：补丁 + B1组(5项: ip6 nat/masquerade + xt) + ThinLTO ==="
+              KEEP_LTO=1 bash "$GITHUB_WORKSPACE/scripts/apply_droidspaces.sh" ./common \
+                CONFIG_IP6_NF_NAT CONFIG_IP6_NF_TARGET_MASQUERADE \
+                CONFIG_NETFILTER_XT_TARGET_REJECT CONFIG_NETFILTER_XT_TARGET_LOG \
+                CONFIG_NETFILTER_XT_MATCH_RECENT
+              ;;
+            cfgB2_lto)
+              echo "=== 二分H2：补丁 + B2组(4项: ipset 系列) + ThinLTO ==="
+              KEEP_LTO=1 bash "$GITHUB_WORKSPACE/scripts/apply_droidspaces.sh" ./common \
+                CONFIG_IP_SET CONFIG_IP_SET_HASH_IP CONFIG_IP_SET_HASH_NET \
+                CONFIG_NETFILTER_XT_SET
               ;;
           esac
           echo "=== gki_defconfig 变更 ==="
