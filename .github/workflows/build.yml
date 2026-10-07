@@ -10,7 +10,7 @@ on:
       variant:
         description: '构建变体'
         type: choice
-        options: [droidspaces, stock, droidspaces_lto, stock_lto, patchonly_lto, cfgonly_lto, cfgA_lto, cfgB_lto, cfgB1_lto, cfgB2_lto, cfgA1_lto, cfgA2_lto, cfgA1a_lto, cfgA1b_lto, cfgA2a_lto, cfgA2b_lto, cfgK1_lto, cfgK2_lto, cfgK3_lto, cfgK4_lto, cfgK5_lto, modv_lto, modv2_lto, mq_lto, mq2_lto, mq3_lto, mq4_lto]
+        options: [droidspaces, stock, droidspaces_lto, stock_lto, patchonly_lto, cfgonly_lto, cfgA_lto, cfgB_lto, cfgB1_lto, cfgB2_lto, cfgA1_lto, cfgA2_lto, cfgA1a_lto, cfgA1b_lto, cfgA2a_lto, cfgA2b_lto, cfgK1_lto, cfgK2_lto, cfgK3_lto, cfgK4_lto, cfgK5_lto, modv_lto, modv2_lto, mq_lto, mq2_lto, mq3_lto, mq4_lto, sv1_lto]
         default: droidspaces
       make_release:
         description: '构建成功后创建 Release'
@@ -231,6 +231,15 @@ jobs:
               echo "=== 配置: POSIX_MQUEUE + IPC_NS + DEVTMPFS_MOUNT + USER_NS + PID_NS, 无SYSVIPC ==="
               KEEP_LTO=1 bash "$GITHUB_WORKSPACE/scripts/apply_droidspaces.sh" ./common \
                 CONFIG_POSIX_MQUEUE CONFIG_IPC_NS CONFIG_DEVTMPFS CONFIG_DEVTMPFS_MOUNT CONFIG_USER_NS CONFIG_PID_NS
+              echo "=== 最终defconfig确认 ==="
+              grep -n -E 'SYSVIPC|POSIX_MQUEUE|IPC_NS|PID_NS|DEVTMPFS|USER_NS' ./common/arch/arm64/configs/gki_defconfig || true
+              ;;
+            sv1_lto)
+              echo "=== SV1：SYSVIPC 冲刺 = mq4_lto 全套 + CONFIG_SYSVIPC + CRC 校验绕过 ==="
+              echo "=== 原理: kABI padding 补丁保结构体布局不变 + 内核跳过模块符号 CRC 校验 ==="
+              KEEP_LTO=1 BYPASS_MODVERSIONS=1 bash "$GITHUB_WORKSPACE/scripts/apply_droidspaces.sh" ./common \
+                CONFIG_SYSVIPC CONFIG_POSIX_MQUEUE CONFIG_IPC_NS \
+                CONFIG_DEVTMPFS CONFIG_DEVTMPFS_MOUNT CONFIG_USER_NS CONFIG_PID_NS
               echo "=== 最终defconfig确认 ==="
               grep -n -E 'SYSVIPC|POSIX_MQUEUE|IPC_NS|PID_NS|DEVTMPFS|USER_NS' ./common/arch/arm64/configs/gki_defconfig || true
               ;;

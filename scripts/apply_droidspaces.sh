@@ -163,6 +163,34 @@ for bad in CONFIG_CFS_BANDWIDTH CONFIG_CGROUP_PIDS; do
   fi
 done
 
+# BYPASS_MODVERSIONS=1: 内核侧跳过模块符号 CRC 校验
+# 原理: SYSVIPC kABI padding 补丁已保证结构体布局不变, 但 genksyms CRC 仍会变化,
+#       导致原厂 vendor 模块因 "disagrees about version of symbol" 拒绝加载 → bootloop。
+#       此补丁使 kernel/module.c 的 check_version() 始终返回 1, 模块按符号名正常解析加载。
+if [ "${BYPASS_MODVERSIONS:-0}" = "1" ]; then
+  echo "== 附加: 绕过模块符号 CRC 校验 (BYPASS_MODVERSIONS=1) =="
+  python3 - "$TREE/kernel/module.c" <<'PYEOF'
+import sys
+p = sys.argv[1]
+s = open(p).read()
+if "BYPASS_MODVERSIONS" in s:
+    print("  已应用过，跳过")
+    sys.exit(0)
+key = "static int check_version(const struct load_info *info,"
+i = s.find(key)
+if i < 0:
+    print("❌ 未找到 check_version() 函数"); sys.exit(1)
+j = s.find("{", i)
+k = s.find(";", j)
+if k < 0:
+    print("❌ check_version() 结构异常"); sys.exit(1)
+s = s[:k+1] + "\n\t/* BYPASS_MODVERSIONS: vendor module symbol CRC check bypass */\n\treturn 1;" + s[k+1:]
+open(p, "w").write(s)
+print("  ✅ check_version() 已改为始终返回 1（跳过符号 CRC 校验）")
+PYEOF
+  [ $? -eq 0 ] || { echo "❌ CRC 绕过补丁失败"; exit 1; }
+fi
+
 echo "== Droidspaces 配置完成 =="
 
 # 禁用 check_defconfig 校验（defconfig 手工修改后该检查会报 config 漂移）
