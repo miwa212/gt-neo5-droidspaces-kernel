@@ -180,13 +180,20 @@ key = "static int check_version(const struct load_info *info,"
 i = s.find(key)
 if i < 0:
     print("❌ 未找到 check_version() 函数"); sys.exit(1)
-j = s.find("{", i)
-k = s.find(";", j)
-if k < 0:
-    print("❌ check_version() 结构异常"); sys.exit(1)
-s = s[:k+1] + "\n\t/* BYPASS_MODVERSIONS: vendor module symbol CRC check bypass */\n\treturn 1;" + s[k+1:]
+# C90 安全写法: 新增同名包装函数直接返回 1, 原函数改名并标记 __maybe_unused
+wrapper = (
+    "static int check_version(const struct load_info *info,\n"
+    "\t\t\t const char *symname,\n"
+    "\t\t\t struct module *mod,\n"
+    "\t\t\t const s32 *crc)\n"
+    "{\n"
+    "\t/* BYPASS_MODVERSIONS: vendor module symbol CRC check bypass */\n"
+    "\treturn 1;\n"
+    "}\n\n"
+)
+s = s[:i] + wrapper + s[i:].replace(key, "static __maybe_unused int check_version_unused(", 1)
 open(p, "w").write(s)
-print("  ✅ check_version() 已改为始终返回 1（跳过符号 CRC 校验）")
+print("  ✅ check_version() 已包装为始终返回 1（跳过符号 CRC 校验, C90 安全）")
 PYEOF
   [ $? -eq 0 ] || { echo "❌ CRC 绕过补丁失败"; exit 1; }
 fi
