@@ -5,7 +5,7 @@
 - **设备**: realme GT Neo5 240W / RMX3708 / GT Neo5 / GT3（senna，骁龙 8+ Gen 1 / SM8475）
 - **系统**: ColorOS 15 / Android 15，内核 5.10.226-android12-9（GKI，KMI 9）
 - **源码**: realme AndroidU 官方内核（经 `Quantom2/gt_neo5_kernel_manifest` 同步 kernel_platform）
-- **当前推荐版本**: [`senna-mq_lto`](../../releases)（POSIX_MQUEUE + IPC_NS + 16 项 Droidspaces 配置，已在真机验证可正常启动）
+- **当前推荐版本**: [`senna-mq4_lto`](../../releases)（POSIX_MQUEUE + IPC_NS + PID_NS + DEVTMPFS_MOUNT + USER_NS，无 SYSVIPC，已在真机验证可正常启动）
 
 ## ✅ 实测结论（二分法真机验证，2026-10）
 
@@ -19,13 +19,14 @@ realme 原厂 GKI 内核 **SYSVIPC / POSIX_MQUEUE / IPC_NS / PID_NS 全部默认
 | modv_lto | 全配置 + 关闭 MODVERSIONS | ❌ bootloop（vermagic 不匹配，此路不通） |
 | cfgK2_lto / modv2_lto | 无 MQUEUE/SYSVIPC（modv2 含其余 16 项） | ✅ 启动，但 **IPC_NS 被 Kconfig 静默丢弃** |
 | **mq_lto** ⭐ | **POSIX_MQUEUE + IPC_NS**（无 SYSVIPC） | ✅ **启动，IPC_NS/MQUEUE 实测生效** |
-| mq2_lto | mq_lto + PID_NS | ❌ bootloop（MQUEUE 与 PID_NS 的 kABI 补丁冲突） |
+| mq2_lto | mq_lto + PID_NS | ❌ bootloop（原因存疑，见 mq4） |
+| **mq4_lto** ⭐⭐ | **MQUEUE + IPC_NS + DEVTMPFS_MOUNT + USER_NS + PID_NS**（无 SYSVIPC） | ✅ **启动，/proc/config.gz 实测全部生效** |
 
 **关键发现：**
 
 1. **`CONFIG_SYSVIPC` 是砖因**——其结构体改动无法用 kABI 槽位补丁保住符号 CRC，vendor 模块加载即崩。**无解**，除非同源重建全部 vendor 模块并同刷 vendor_boot / vendor_dlkm / system_dlkm。
 2. **`IPC_NS depends on (SYSVIPC || POSIX_MQUEUE)`**（5.10 Kconfig）。只开 IPC_NS 会被静默丢弃——这就是 cfgK2 "能开机" 的真正原因（等于没改配置）。
-3. **POSIX_MQUEUE 的 kABI 填充补丁有效**，单独开启不会破坏 CRC；但与 PID_NS 同时开启会冲突。
+3. **POSIX_MQUEUE 的 kABI 填充补丁有效**，单独开启不会破坏 CRC；MQUEUE 与 PID_NS 同开并不必然冲突（mq4_lto 实测可开机），mq2_lto 的失败另有原因（疑似缺 DEVTMPFS_MOUNT 时 PID_NS 环境下 devtmpfs 初始化问题），确切根因待查。
 4. **关闭 `CONFIG_MODVERSIONS` 是死路**：原厂模块 vermagic 带 `modversions` 标志，直接拒载。
 5. ⚠️ **`fastboot flash boot` 直刷任何非原厂 boot.img 都会导致无法开机**（CI 打包的 boot.img 不含 realme 原厂 ramdisk）。**只能用 AnyKernel3 方式刷入**（只替换内核 Image，保留原厂 ramdisk/dtb）。
 
