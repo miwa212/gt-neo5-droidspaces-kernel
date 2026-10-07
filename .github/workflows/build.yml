@@ -10,7 +10,7 @@ on:
       variant:
         description: '构建变体'
         type: choice
-        options: [droidspaces, stock, droidspaces_lto, stock_lto, patchonly_lto, cfgonly_lto, cfgA_lto, cfgB_lto, cfgB1_lto, cfgB2_lto, cfgA1_lto, cfgA2_lto, cfgA1a_lto, cfgA1b_lto, cfgA2a_lto, cfgA2b_lto, cfgK1_lto, cfgK2_lto, cfgK3_lto, cfgK4_lto, cfgK5_lto, modv_lto]
+        options: [droidspaces, stock, droidspaces_lto, stock_lto, patchonly_lto, cfgonly_lto, cfgA_lto, cfgB_lto, cfgB1_lto, cfgB2_lto, cfgA1_lto, cfgA2_lto, cfgA1a_lto, cfgA1b_lto, cfgA2a_lto, cfgA2b_lto, cfgK1_lto, cfgK2_lto, cfgK3_lto, cfgK4_lto, cfgK5_lto, modv_lto, modv2_lto]
         default: droidspaces
       make_release:
         description: '构建成功后创建 Release'
@@ -190,6 +190,18 @@ jobs:
               echo "=== MODVERSIONS 状态 ==="
               grep -n 'MODVERSIONS' ./common/arch/arm64/configs/gki_defconfig || true
               ;;
+            modv2_lto)
+              echo "=== 测试M2：补丁 + IPC_NS + 其余16项(无SYSVIPC/MQUEUE) + MODVERSIONS保持开启 + ThinLTO ==="
+              echo "=== 目的: 验证除SYSVIPC/MQUEUE外的16项是否安全, 并dump最终.config ==="
+              KEEP_LTO=1 bash "$GITHUB_WORKSPACE/scripts/apply_droidspaces.sh" ./common \
+                CONFIG_IPC_NS CONFIG_PID_NS CONFIG_DEVTMPFS \
+                CONFIG_NETFILTER_XT_MATCH_ADDRTYPE CONFIG_USER_NS \
+                CONFIG_IP6_NF_NAT CONFIG_IP6_NF_TARGET_MASQUERADE \
+                CONFIG_NETFILTER_XT_TARGET_REJECT CONFIG_NETFILTER_XT_TARGET_LOG \
+                CONFIG_NETFILTER_XT_MATCH_RECENT CONFIG_IP_SET CONFIG_IP_SET_HASH_IP \
+                CONFIG_IP_SET_HASH_NET CONFIG_NETFILTER_XT_SET \
+                CONFIG_TMPFS_POSIX_ACL CONFIG_TMPFS_XATTR
+              ;;
             cfgB_lto)
               echo "=== 二分G2：补丁 + 配置B组(9项: netfilter/ipset) + ThinLTO ==="
               KEEP_LTO=1 bash "$GITHUB_WORKSPACE/scripts/apply_droidspaces.sh" ./common \
@@ -227,6 +239,13 @@ jobs:
           ls -la ~/kernel_platform/out/msm-waipio-waipio-gki/gki_kernel/dist/ || true
           [ -f ~/kernel_platform/out/msm-waipio-waipio-gki/gki_kernel/dist/Image ] \
             || { echo "::error::Image 产物不存在，构建失败"; exit 1; }
+          echo "=== 最终 .config 关键项诊断 ==="
+          for f in ~/kernel_platform/out/msm-waipio-waipio-gki/gki_kernel/.config ~/kernel_platform/out/msm-waipio-waipio-gki/.config; do
+            if [ -f "$f" ]; then
+              echo "--- $f ---"
+              grep -E '^(CONFIG_SYSVIPC|CONFIG_POSIX_MQUEUE|CONFIG_IPC_NS|CONFIG_MODVERSIONS|CONFIG_USER_NS|CONFIG_IP_SET|CONFIG_PID_NS|CONFIG_LTO)' "$f" | head -20
+            fi
+          done
 
       - name: Package AnyKernel3 flashable zip
         run: |
