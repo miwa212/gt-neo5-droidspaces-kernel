@@ -191,7 +191,7 @@ wrapper = (
     "\treturn 1;\n"
     "}\n\n"
 )
-s = s[:i] + wrapper + s[i:].replace(key, "static __maybe_unused int check_version_unused(", 1)
+s = s[:i] + wrapper + s[i:].replace(key, "static __maybe_unused int check_version_unused(const struct load_info *info,", 1)
 open(p, "w").write(s)
 print("  ✅ check_version() 已包装为始终返回 1（跳过符号 CRC 校验, C90 安全）")
 PYEOF
