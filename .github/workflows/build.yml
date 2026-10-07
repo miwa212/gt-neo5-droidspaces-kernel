@@ -10,7 +10,7 @@ on:
       variant:
         description: '构建变体'
         type: choice
-        options: [droidspaces, stock, droidspaces_lto, stock_lto, patchonly_lto, cfgonly_lto, cfgA_lto, cfgB_lto, cfgB1_lto, cfgB2_lto, cfgA1_lto, cfgA2_lto, cfgA1a_lto, cfgA1b_lto, cfgA2a_lto, cfgA2b_lto, cfgK1_lto, cfgK2_lto, cfgK3_lto, cfgK4_lto, cfgK5_lto, modv_lto, modv2_lto]
+        options: [droidspaces, stock, droidspaces_lto, stock_lto, patchonly_lto, cfgonly_lto, cfgA_lto, cfgB_lto, cfgB1_lto, cfgB2_lto, cfgA1_lto, cfgA2_lto, cfgA1a_lto, cfgA1b_lto, cfgA2a_lto, cfgA2b_lto, cfgK1_lto, cfgK2_lto, cfgK3_lto, cfgK4_lto, cfgK5_lto, modv_lto, modv2_lto, mq_lto]
         default: droidspaces
       make_release:
         description: '构建成功后创建 Release'
@@ -201,6 +201,14 @@ jobs:
                 CONFIG_NETFILTER_XT_MATCH_RECENT CONFIG_IP_SET CONFIG_IP_SET_HASH_IP \
                 CONFIG_IP_SET_HASH_NET CONFIG_NETFILTER_XT_SET \
                 CONFIG_TMPFS_POSIX_ACL CONFIG_TMPFS_XATTR
+              ;;
+            mq_lto)
+              echo "=== 测试MQ：补丁 + 仅POSIX_MQUEUE + IPC_NS(依赖满足可生效) 无SYSVIPC + ThinLTO ==="
+              echo "=== 原理: IPC_NS depends on (SYSVIPC || POSIX_MQUEUE), 只开MQUEUE即可启用IPC_NS ==="
+              KEEP_LTO=1 bash "$GITHUB_WORKSPACE/scripts/apply_droidspaces.sh" ./common \
+                CONFIG_POSIX_MQUEUE CONFIG_IPC_NS
+              echo "=== 最终defconfig确认 ==="
+              grep -n -E 'SYSVIPC|POSIX_MQUEUE|IPC_NS' ./common/arch/arm64/configs/gki_defconfig || true
               ;;
             cfgB_lto)
               echo "=== 二分G2：补丁 + 配置B组(9项: netfilter/ipset) + ThinLTO ==="
